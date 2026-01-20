@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card p-4">
+  <div class="d-flex align-items-center justify-content-between">
+    <div>
+      <div class="fs-4 fw-semibold">Copiar conteúdo</div>
+      <div class="text-soft">{{ p.title }}</div>
+    </div>
+    <a class="btn btn-soft rounded-4" href="{{ url_for('products') }}">Voltar</a>
+  </div>
+
+  {% if not p.caption %}
+  <div class="alert alert-secondary border-0 rounded-4 mt-3">
+    Este produto ainda não tem legenda. Clique em <b>Gerar</b> na lista de produtos.
+  </div>
+  {% endif %}
+
+  <div class="row g-3 mt-1">
+    <div class="col-lg-6">
+      <div class="card p-3">
+        <div class="d-flex align-items-center justify-content-between">
+          <div class="fw-semibold">Legenda</div>
+          <button class="btn btn-soft btn-sm rounded-4" onclick="copyText(`{{ (p.caption or '').replace('`','\`') }}`)">Copiar</button>
+        </div>
+        <pre class="mt-2 text-soft">{{ p.caption }}</pre>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card p-3">
+        <div class="d-flex align-items-center justify-content-between">
+          <div class="fw-semibold">Hashtags</div>
+          <button class="btn btn-soft btn-sm rounded-4" onclick="copyText(`{{ (p.hashtags or '').replace('`','\`') }}`)">Copiar</button>
+        </div>
+        <pre class="mt-2 text-soft">{{ p.hashtags }}</pre>
+      </div>
+      <div class="card p-3 mt-3">
+        <div class="fw-semibold">Texto completo (Legenda + Hashtags)</div>
+        <div class="text-soft mt-1">Pronto para colar.</div>
+        <button class="btn btn-soft btn-sm rounded-4 mt-2" onclick="copyText(`{{ ((p.caption or '') + '\n\n' + (p.hashtags or '')).replace('`','\`') }}`)">Copiar tudo</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

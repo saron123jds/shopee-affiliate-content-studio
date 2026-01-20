@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card p-4">
+  <div class="d-flex align-items-center justify-content-between">
+    <div>
+      <div class="fs-4 fw-semibold">Configurações</div>
+      <div class="text-soft">Controle do gerador de legendas e hashtags.</div>
+    </div>
+    <a class="btn btn-soft rounded-4" href="{{ url_for('products') }}">Voltar</a>
+  </div>
+
+  <form class="mt-4" method="post">
+    <div class="row g-3">
+      <div class="col-lg-8">
+        <label class="form-label text-soft">Hashtags fixas (sempre entram)</label>
+        <textarea class="form-control" name="fixed_hashtags" rows="2" placeholder="#shopee #shopeeafiliados">{{ s.fixed_hashtags }}</textarea>
+        <div class="form-text text-soft">Dica: coloque também sua hashtag de nicho, ex: #modafeminina</div>
+      </div>
+      <div class="col-lg-4">
+        <label class="form-label text-soft">Máximo de hashtags</label>
+        <input class="form-control" type="number" name="max_hashtags" value="{{ s.max_hashtags }}">
+      </div>
+
+      <div class="col-lg-6">
+        <label class="form-label text-soft">Prefixo padrão</label>
+        <input class="form-control" name="default_prefix" value="{{ s.default_prefix }}" placeholder="Achado do dia ✨">
+      </div>
+      <div class="col-lg-6">
+        <label class="form-label text-soft">Sufixo padrão (opcional)</label>
+        <input class="form-control" name="default_suffix" value="{{ s.default_suffix }}" placeholder="Ex: Envio rápido 🚚">
+      </div>
+
+      <div class="col-lg-6">
+        <label class="form-label text-soft">CTA (chamada)</label>
+        <input class="form-control" name="cta" value="{{ s.cta }}" placeholder="Confira no link 👇">
+      </div>
+      <div class="col-lg-6">
+        <label class="form-label text-soft">Aviso de afiliado</label>
+        <input class="form-control" name="affiliate_disclaimer" value="{{ s.affiliate_disclaimer }}">
+      </div>
+    </div>
+
+    <div class="mt-4">
+      <button class="btn btn-light rounded-4">Salvar</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

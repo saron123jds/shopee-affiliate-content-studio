@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+  <div>
+    <div class="fs-4 fw-semibold">Produtos</div>
+    <div class="text-soft">Cadastre, gere e copie rapidamente.</div>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-light rounded-4" href="{{ url_for('product_new') }}">+ Novo</a>
+    <form method="post" action="{{ url_for('generate_all') }}">
+      <button class="btn btn-soft rounded-4" type="submit">Gerar tudo</button>
+    </form>
+    <form method="post" action="{{ url_for('export_zip') }}">
+      <button class="btn btn-soft rounded-4" type="submit">Exportar ZIP</button>
+    </form>
+  </div>
+</div>
+
+<div class="card p-3 mb-3">
+  <form class="d-flex gap-2" method="get" action="{{ url_for('products') }}">
+    <input class="form-control" name="q" value="{{ q }}" placeholder="Buscar por título...">
+    <button class="btn btn-soft rounded-4" type="submit">Buscar</button>
+    <a class="btn btn-soft rounded-4" href="{{ url_for('products') }}">Limpar</a>
+  </form>
+</div>
+
+<div class="card p-3">
+  <div class="table-responsive">
+    <table class="table align-middle mb-0">
+      <thead>
+        <tr class="text-soft">
+          <th>ID</th>
+          <th>Título</th>
+          <th>Categoria</th>
+          <th>Legenda</th>
+          <th style="width: 360px;">Ações</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in items %}
+        <tr>
+          <td class="text-soft">{{ p.id }}</td>
+          <td>
+            <div class="fw-semibold">{{ p.title }}</div>
+            <div class="text-soft small">
+              {% if p.price %}💰 {{ p.price }}{% endif %}
+              {% if p.affiliate_link %} · <a href="{{ p.affiliate_link }}" target="_blank">link</a>{% endif %}
+            </div>
+          </td>
+          <td class="text-soft">{{ p.category }}</td>
+          <td>
+            {% if p.caption %}
+              <span class="badge bg-success rounded-pill">Gerada</span>
+            {% else %}
+              <span class="badge bg-secondary rounded-pill">Pendente</span>
+            {% endif %}
+          </td>
+          <td>
+            <div class="d-flex flex-wrap gap-2">
+              <form method="post" action="{{ url_for('product_generate', pid=p.id) }}">
+                <button class="btn btn-soft btn-sm rounded-4" type="submit">Gerar</button>
+              </form>
+              <a class="btn btn-soft btn-sm rounded-4" href="{{ url_for('product_copy', pid=p.id) }}">Copiar</a>
+              <a class="btn btn-soft btn-sm rounded-4" href="{{ url_for('product_edit', pid=p.id) }}">Editar</a>
+              <form method="post" action="{{ url_for('product_delete', pid=p.id) }}" onsubmit="return confirm('Remover este produto?');">
+                <button class="btn btn-danger btn-sm rounded-4" type="submit">Excluir</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+        {% if not items %}
+        <tr><td colspan="5" class="text-soft">Nenhum produto ainda. Clique em “+ Novo”.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
