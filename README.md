@@ -21,5 +21,6 @@ Abra: http://127.0.0.1:7000
 3. Clique em **Gerar legenda** (individual ou em lote)
 4. Use **Copiar** para colar no seu local de postagem
 5. Use **Exportar ZIP** para baixar as fotos e um `.txt` com legenda/hashtags por produto (ótimo pra sua “fila” do dia)
+6. Acompanhe vídeos em **Vídeos** para registrar quantas visualizações você já fez manualmente
 
 > Dica: você pode colar vários links de imagens (1 por linha) no campo de imagens.

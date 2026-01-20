@@ -47,6 +47,15 @@ class Product(db.Model):
     created_at = db.Column(db.DateTime, default=dt.datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=dt.datetime.utcnow, onupdate=dt.datetime.utcnow)
 
+class Video(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.Text, default="")
+    shopee_url = db.Column(db.Text, nullable=False)
+    target_views = db.Column(db.Integer, default=1)
+    current_views = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=dt.datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=dt.datetime.utcnow, onupdate=dt.datetime.utcnow)
+
 
 # -----------------------------
 # Hashtag engine (heurística)
@@ -221,6 +230,10 @@ def get_settings() -> Settings:
         db.session.add(s)
         db.session.commit()
     return s
+
+with app.app_context():
+    db.create_all()
+    get_settings()
 
 def parse_image_urls(text: str) -> List[str]:
     urls = []
@@ -415,6 +428,50 @@ def product_edit(pid):
         flash("Produto atualizado ✅", "success")
         return redirect(url_for("products"))
     return render_template("product_form.html", p=p)
+
+@app.route("/videos", methods=["GET", "POST"])
+def videos():
+    if request.method == "POST":
+        title = request.form.get("title", "").strip()
+        shopee_url = request.form.get("shopee_url", "").strip()
+        target_views = int(request.form.get("target_views", "1") or 1)
+        if not shopee_url:
+            flash("Informe o link do vídeo da Shopee.", "warning")
+            return redirect(url_for("videos"))
+        if target_views < 1:
+            target_views = 1
+        v = Video(title=title, shopee_url=shopee_url, target_views=target_views)
+        db.session.add(v)
+        db.session.commit()
+        flash("Vídeo adicionado ✅", "success")
+        return redirect(url_for("videos"))
+
+    items = Video.query.order_by(Video.updated_at.desc()).all()
+    return render_template("videos.html", items=items)
+
+@app.route("/videos/<int:vid>/increment", methods=["POST"])
+def video_increment(vid):
+    v = Video.query.get_or_404(vid)
+    v.current_views = (v.current_views or 0) + 1
+    db.session.commit()
+    flash("Visualização registrada ✅", "success")
+    return redirect(url_for("videos"))
+
+@app.route("/videos/<int:vid>/reset", methods=["POST"])
+def video_reset(vid):
+    v = Video.query.get_or_404(vid)
+    v.current_views = 0
+    db.session.commit()
+    flash("Contador reiniciado ✅", "warning")
+    return redirect(url_for("videos"))
+
+@app.route("/videos/<int:vid>/delete", methods=["POST"])
+def video_delete(vid):
+    v = Video.query.get_or_404(vid)
+    db.session.delete(v)
+    db.session.commit()
+    flash("Vídeo removido 🗑️", "warning")
+    return redirect(url_for("videos"))
 
 @app.route("/products/<int:pid>/delete", methods=["POST"])
 def product_delete(pid):
