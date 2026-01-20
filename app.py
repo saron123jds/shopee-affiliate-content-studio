@@ -257,6 +257,75 @@ def download_images(urls: List[str], folder: str) -> List[str]:
             continue
     return saved
 
+def format_price(value) -> str:
+    if value is None:
+        return ""
+    try:
+        amount = float(value)
+    except (TypeError, ValueError):
+        return ""
+    if amount <= 0:
+        return ""
+    if amount >= 100000:
+        amount = amount / 100000
+    elif amount >= 100:
+        amount = amount / 100
+    formatted = f"{amount:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    return f"R$ {formatted}"
+
+def find_dict_with_keys(data, required_keys: List[str]):
+    if isinstance(data, dict):
+        if all(key in data for key in required_keys):
+            return data
+        for value in data.values():
+            found = find_dict_with_keys(value, required_keys)
+            if found:
+                return found
+    elif isinstance(data, list):
+        for value in data:
+            found = find_dict_with_keys(value, required_keys)
+            if found:
+                return found
+    return None
+
+def extract_shopee_product(url: str) -> Tuple[str, str, List[str]]:
+    headers = {
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "accept-language": "pt-BR,pt;q=0.9,en;q=0.8",
+    }
+    resp = requests.get(url, headers=headers, timeout=20)
+    resp.raise_for_status()
+    html = resp.text
+    match = re.search(r'__NEXT_DATA__"\s*type="application/json"\s*>(\{.*?\})</script>', html, re.DOTALL)
+    if not match:
+        raise ValueError("Não foi possível localizar os dados do produto.")
+    try:
+        data = json.loads(match.group(1))
+    except json.JSONDecodeError as exc:
+        raise ValueError("Não foi possível ler os dados do produto.") from exc
+
+    item = find_dict_with_keys(data, ["name", "images"])
+    if not item:
+        raise ValueError("Não foi possível encontrar imagens do produto.")
+
+    title = (item.get("name") or item.get("title") or "").strip()
+    if not title:
+        raise ValueError("Não foi possível identificar o título do produto.")
+
+    images_raw = item.get("images") or []
+    image_urls = []
+    for img in images_raw:
+        if not img:
+            continue
+        if isinstance(img, str) and img.startswith("http"):
+            image_urls.append(img)
+        else:
+            image_urls.append(f"https://down-br.img.susercontent.com/file/{img}")
+
+    price = format_price(
+        item.get("price") or item.get("price_min") or item.get("price_min_before_discount")
+    )
+    return title, price, image_urls
 
 # -----------------------------
 # Routes
@@ -308,6 +377,29 @@ def product_new():
         flash("Produto cadastrado ✅", "success")
         return redirect(url_for("products"))
     return render_template("product_form.html", p=None)
+
+@app.route("/products/from_shopee", methods=["POST"])
+def product_from_shopee():
+    url = (request.form.get("shopee_url") or "").strip()
+    if not url:
+        flash("Informe o link do produto da Shopee.", "warning")
+        return redirect(url_for("product_new"))
+    try:
+        title, price, image_urls = extract_shopee_product(url)
+    except Exception as exc:
+        flash(f"Não foi possível importar o produto: {exc}", "danger")
+        return redirect(url_for("product_new"))
+
+    p = Product(
+        title=title,
+        price=price,
+        affiliate_link="",
+        image_urls="\n".join(image_urls),
+    )
+    db.session.add(p)
+    db.session.commit()
+    flash("Produto importado da Shopee ✅", "success")
+    return redirect(url_for("product_edit", pid=p.id))
 
 @app.route("/products/<int:pid>/edit", methods=["GET","POST"])
 def product_edit(pid):
