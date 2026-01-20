@@ -47,6 +47,15 @@ class Product(db.Model):
     created_at = db.Column(db.DateTime, default=dt.datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=dt.datetime.utcnow, onupdate=dt.datetime.utcnow)
 
+class Video(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.Text, default="")
+    shopee_url = db.Column(db.Text, nullable=False)
+    target_views = db.Column(db.Integer, default=1)
+    current_views = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=dt.datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=dt.datetime.utcnow, onupdate=dt.datetime.utcnow)
+
 
 # -----------------------------
 # Hashtag engine (heurística)
@@ -222,6 +231,10 @@ def get_settings() -> Settings:
         db.session.commit()
     return s
 
+with app.app_context():
+    db.create_all()
+    get_settings()
+
 def parse_image_urls(text: str) -> List[str]:
     urls = []
     for line in (text or "").splitlines():
@@ -257,6 +270,75 @@ def download_images(urls: List[str], folder: str) -> List[str]:
             continue
     return saved
 
+def format_price(value) -> str:
+    if value is None:
+        return ""
+    try:
+        amount = float(value)
+    except (TypeError, ValueError):
+        return ""
+    if amount <= 0:
+        return ""
+    if amount >= 100000:
+        amount = amount / 100000
+    elif amount >= 100:
+        amount = amount / 100
+    formatted = f"{amount:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    return f"R$ {formatted}"
+
+def find_dict_with_keys(data, required_keys: List[str]):
+    if isinstance(data, dict):
+        if all(key in data for key in required_keys):
+            return data
+        for value in data.values():
+            found = find_dict_with_keys(value, required_keys)
+            if found:
+                return found
+    elif isinstance(data, list):
+        for value in data:
+            found = find_dict_with_keys(value, required_keys)
+            if found:
+                return found
+    return None
+
+def extract_shopee_product(url: str) -> Tuple[str, str, List[str]]:
+    headers = {
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "accept-language": "pt-BR,pt;q=0.9,en;q=0.8",
+    }
+    resp = requests.get(url, headers=headers, timeout=20)
+    resp.raise_for_status()
+    html = resp.text
+    match = re.search(r'__NEXT_DATA__"\s*type="application/json"\s*>(\{.*?\})</script>', html, re.DOTALL)
+    if not match:
+        raise ValueError("Não foi possível localizar os dados do produto.")
+    try:
+        data = json.loads(match.group(1))
+    except json.JSONDecodeError as exc:
+        raise ValueError("Não foi possível ler os dados do produto.") from exc
+
+    item = find_dict_with_keys(data, ["name", "images"])
+    if not item:
+        raise ValueError("Não foi possível encontrar imagens do produto.")
+
+    title = (item.get("name") or item.get("title") or "").strip()
+    if not title:
+        raise ValueError("Não foi possível identificar o título do produto.")
+
+    images_raw = item.get("images") or []
+    image_urls = []
+    for img in images_raw:
+        if not img:
+            continue
+        if isinstance(img, str) and img.startswith("http"):
+            image_urls.append(img)
+        else:
+            image_urls.append(f"https://down-br.img.susercontent.com/file/{img}")
+
+    price = format_price(
+        item.get("price") or item.get("price_min") or item.get("price_min_before_discount")
+    )
+    return title, price, image_urls
 
 # -----------------------------
 # Routes
@@ -309,6 +391,29 @@ def product_new():
         return redirect(url_for("products"))
     return render_template("product_form.html", p=None)
 
+@app.route("/products/from_shopee", methods=["POST"])
+def product_from_shopee():
+    url = (request.form.get("shopee_url") or "").strip()
+    if not url:
+        flash("Informe o link do produto da Shopee.", "warning")
+        return redirect(url_for("product_new"))
+    try:
+        title, price, image_urls = extract_shopee_product(url)
+    except Exception as exc:
+        flash(f"Não foi possível importar o produto: {exc}", "danger")
+        return redirect(url_for("product_new"))
+
+    p = Product(
+        title=title,
+        price=price,
+        affiliate_link="",
+        image_urls="\n".join(image_urls),
+    )
+    db.session.add(p)
+    db.session.commit()
+    flash("Produto importado da Shopee ✅", "success")
+    return redirect(url_for("product_edit", pid=p.id))
+
 @app.route("/products/<int:pid>/edit", methods=["GET","POST"])
 def product_edit(pid):
     p = Product.query.get_or_404(pid)
@@ -323,6 +428,77 @@ def product_edit(pid):
         flash("Produto atualizado ✅", "success")
         return redirect(url_for("products"))
     return render_template("product_form.html", p=p)
+
+@app.route("/videos", methods=["GET", "POST"])
+def videos():
+    if request.method == "POST":
+        title = request.form.get("title", "").strip()
+        shopee_url = request.form.get("shopee_url", "").strip()
+        target_views = int(request.form.get("target_views", "1") or 1)
+        if not shopee_url:
+            flash("Informe o link do vídeo da Shopee.", "warning")
+            return redirect(url_for("videos"))
+        if target_views < 1:
+            target_views = 1
+        v = Video(title=title, shopee_url=shopee_url, target_views=target_views)
+        db.session.add(v)
+        db.session.commit()
+        flash("Vídeo adicionado ✅", "success")
+        return redirect(url_for("videos"))
+
+    items = Video.query.order_by(Video.updated_at.desc()).all()
+    return render_template("videos.html", items=items)
+
+@app.route("/videos/<int:vid>/increment", methods=["POST"])
+def video_increment(vid):
+    v = Video.query.get_or_404(vid)
+    v.current_views = (v.current_views or 0) + 1
+    db.session.commit()
+    flash("Visualização registrada ✅", "success")
+    return redirect(url_for("videos"))
+
+@app.route("/videos/<int:vid>/bulk_increment", methods=["POST"])
+def video_bulk_increment(vid):
+    v = Video.query.get_or_404(vid)
+    try:
+        count = int(request.form.get("count", "1") or 1)
+    except (TypeError, ValueError):
+        count = 1
+    if count < 1:
+        count = 1
+    v.current_views = (v.current_views or 0) + count
+    db.session.commit()
+    return ("", 204)
+
+@app.route("/videos/<int:vid>/reset", methods=["POST"])
+def video_reset(vid):
+    v = Video.query.get_or_404(vid)
+    v.current_views = 0
+    db.session.commit()
+    flash("Contador reiniciado ✅", "warning")
+    return redirect(url_for("videos"))
+
+@app.route("/videos/<int:vid>/delete", methods=["POST"])
+def video_delete(vid):
+    v = Video.query.get_or_404(vid)
+    db.session.delete(v)
+    db.session.commit()
+    flash("Vídeo removido 🗑️", "warning")
+    return redirect(url_for("videos"))
+
+@app.route("/videos/<int:vid>/engage")
+def video_engage(vid):
+    v = Video.query.get_or_404(vid)
+    target = request.args.get("count", "30")
+    try:
+        count = int(target)
+    except (TypeError, ValueError):
+        count = 30
+    if count < 1:
+        count = 1
+    if count > 50:
+        count = 50
+    return render_template("video_engage.html", v=v, count=count)
 
 @app.route("/products/<int:pid>/delete", methods=["POST"])
 def product_delete(pid):
