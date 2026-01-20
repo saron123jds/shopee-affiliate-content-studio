@@ -58,6 +58,7 @@
               <form method="post" action="{{ url_for('video_increment', vid=v.id) }}">
                 <button class="btn btn-soft btn-sm rounded-4" type="submit">Registrar visualização</button>
               </form>
+              <a class="btn btn-soft btn-sm rounded-4" href="{{ url_for('video_engage', vid=v.id, count=30) }}">Engajar 30x</a>
               <form method="post" action="{{ url_for('video_reset', vid=v.id) }}">
                 <button class="btn btn-soft btn-sm rounded-4" type="submit">Reiniciar</button>
               </form>

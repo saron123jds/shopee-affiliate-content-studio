@@ -457,6 +457,19 @@ def video_increment(vid):
     flash("Visualização registrada ✅", "success")
     return redirect(url_for("videos"))
 
+@app.route("/videos/<int:vid>/bulk_increment", methods=["POST"])
+def video_bulk_increment(vid):
+    v = Video.query.get_or_404(vid)
+    try:
+        count = int(request.form.get("count", "1") or 1)
+    except (TypeError, ValueError):
+        count = 1
+    if count < 1:
+        count = 1
+    v.current_views = (v.current_views or 0) + count
+    db.session.commit()
+    return ("", 204)
+
 @app.route("/videos/<int:vid>/reset", methods=["POST"])
 def video_reset(vid):
     v = Video.query.get_or_404(vid)
@@ -472,6 +485,20 @@ def video_delete(vid):
     db.session.commit()
     flash("Vídeo removido 🗑️", "warning")
     return redirect(url_for("videos"))
+
+@app.route("/videos/<int:vid>/engage")
+def video_engage(vid):
+    v = Video.query.get_or_404(vid)
+    target = request.args.get("count", "30")
+    try:
+        count = int(target)
+    except (TypeError, ValueError):
+        count = 30
+    if count < 1:
+        count = 1
+    if count > 50:
+        count = 50
+    return render_template("video_engage.html", v=v, count=count)
 
 @app.route("/products/<int:pid>/delete", methods=["POST"])
 def product_delete(pid):
